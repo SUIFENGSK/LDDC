@@ -97,6 +97,7 @@ class QMAPI(CloudAPI):
                 "sid": data["session"]["sid"],
                 "userip": data["session"]["userip"],
             }
+            self.inited = True
 
     def request(self, method: str, module: str, param: dict) -> dict:
         """请求API
@@ -124,18 +125,23 @@ class QMAPI(CloudAPI):
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
+        # 各域名的可用性会变化(失效时返回错误码2001), 按优先级依次尝试
         domains = [
-            # "lite.y.qq.com",
-            # "u6.y.qq.com",
-            # "shu6.y.qq.com",
+            "shu6.y.qq.com",
+            "lite.y.qq.com",
             "u.y.qq.com",
+            "u6.y.qq.com",
         ]
-        response = self.client.post(
-            f"https://{random.choice(domains)}/cgi-bin/musicu.fcg",
-            content=data,
-        )
-        response.raise_for_status()
-        response_data = response.json()
+        for domain in domains:
+            response = self.client.post(
+                f"https://{domain}/cgi-bin/musicu.fcg",
+                content=data,
+            )
+            response.raise_for_status()
+            response_data = response.json()
+            if response_data["code"] == 0 and response_data["request"]["code"] == 2001:
+                continue
+            break
         if response_data["code"] != 0 or response_data["request"]["code"] != 0:
             raise APIRequestError("qm API请求错误,错误码:" + str(response_data["code"] if response_data["code"] != 0 else response_data["request"]["code"]))
         return response_data["request"]["data"]
